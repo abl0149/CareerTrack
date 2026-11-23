@@ -1,62 +1,136 @@
 const form = document.getElementById("editApplicationForm");
+const applicationId = localStorage.getItem("editApplicationId");
 
-const applications =
-  JSON.parse(localStorage.getItem("careerTrackApplications")) || [];
-
-const editIndex = Number(
-  localStorage.getItem("editApplicationIndex")
-);
-
-if (
-  !Number.isInteger(editIndex) ||
-  editIndex < 0 ||
-  editIndex >= applications.length
-) {
-  alert("Application not found.");
+if (!applicationId) {
+  alert("No application selected.");
   window.location.href = "applications.html";
-}
+} else if (!form) {
+  console.error(
+    'Could not find form with id="editApplicationForm". Check edit-application.html.'
+  );
+} else {
+  async function loadApplication() {
+    try {
+      const response = await fetch(
+        `/api/applications/${encodeURIComponent(applicationId)}`
+      );
 
-const application = applications[editIndex];
+      if (!response.ok) {
+        throw new Error("Application not found");
+      }
 
-document.getElementById("company").value = application.company || "";
-document.getElementById("role").value = application.role || "";
-document.getElementById("status").value = application.status || "Applied";
-document.getElementById("date").value = application.date || "";
-document.getElementById("deadline").value = application.deadline || "";
-document.getElementById("notes").value = application.notes || "";
+      const application = await response.json();
 
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
+      document.getElementById("company").value =
+        application.company || "";
 
-  const updatedApplication = {
-    company: document.getElementById("company").value.trim(),
-    role: document.getElementById("role").value.trim(),
-    status: document.getElementById("status").value,
-    date: document.getElementById("date").value,
-    deadline: document.getElementById("deadline").value,
-    notes: document.getElementById("notes").value.trim()
-  };
+      document.getElementById("role").value =
+        application.role || "";
 
-  if (
-    !updatedApplication.company ||
-    !updatedApplication.role ||
-    !updatedApplication.status ||
-    !updatedApplication.date
-  ) {
-    alert("Please fill in all required fields.");
-    return;
+      document.getElementById("status").value =
+        application.status || "Applied";
+
+      document.getElementById("date").value =
+        application.date || "";
+
+      document.getElementById("deadline").value =
+        application.deadline || "";
+
+      const interviewInput =
+        document.getElementById("interviewDate");
+
+      if (interviewInput) {
+        interviewInput.value =
+          application.interviewDate || "";
+      }
+
+      document.getElementById("notes").value =
+        application.notes || "";
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        `Unable to load application: ${error.message}`
+      );
+
+      window.location.href = "applications.html";
+    }
   }
 
-  applications[editIndex] = updatedApplication;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  localStorage.setItem(
-    "careerTrackApplications",
-    JSON.stringify(applications)
-  );
+    const updatedApplication = {
+      company: document
+        .getElementById("company")
+        .value.trim(),
 
-  localStorage.removeItem("editApplicationIndex");
+      role: document
+        .getElementById("role")
+        .value.trim(),
 
-  alert("Application updated successfully.");
+      status:
+        document.getElementById("status").value,
 
-  window.location.href = "applications.html";
-});
+      date:
+        document.getElementById("date").value,
+
+      deadline:
+        document.getElementById("deadline").value,
+
+      interviewDate:
+        document.getElementById("interviewDate")
+          ?.value || "",
+
+      notes: document
+        .getElementById("notes")
+        .value.trim()
+    };
+
+    if (
+      !updatedApplication.company ||
+      !updatedApplication.role ||
+      !updatedApplication.status ||
+      !updatedApplication.date
+    ) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/applications/${encodeURIComponent(applicationId)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(updatedApplication)
+        }
+      );
+
+      if (!response.ok) {
+        const error =
+          await response.json().catch(() => ({}));
+
+        throw new Error(
+          error.error || "Update failed"
+        );
+      }
+
+      localStorage.removeItem("editApplicationId");
+
+      alert("Application updated successfully!");
+
+      window.location.href = "applications.html";
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        `Unable to update application: ${error.message}`
+      );
+    }
+  });
+
+  loadApplication();
+}
